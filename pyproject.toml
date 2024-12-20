@@ -3,11 +3,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mcp-python-repl"
+name = "mcp-python"
 version = "0.1.0"
 description = "MCP server providing a Python REPL with persistent session"
 requires-python = ">=3.10"
 dependencies = ["mcp"]
 
 [project.scripts]
-python-repl = "python_repl:main"
+python-repl = "mcp_python:main"
+
+# Add this section to tell Hatch where to find the package files
+[tool.hatch.build.targets.wheel]
+packages = ["src/python_repl"]
