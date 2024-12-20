@@ -8,6 +8,17 @@ version = "0.1.1"
 description = "MCP server providing a Python REPL with persistent session"
 requires-python = ">=3.10"
 dependencies = ["mcp"]
+authors = [{ name = "Tynan Daly", email = "tynan@hdr.is" }]
+license = "MIT"
+keywords = ["mcp", "repl", "python", "server"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+readme = "README.md"
 
 [project.scripts]
 python-repl = "mcp_python:main"
