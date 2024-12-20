@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-python"
-version = "0.1.1"
+version = "0.1.2"
 description = "MCP server providing a Python REPL with persistent session"
 requires-python = ">=3.10"
 dependencies = ["mcp"]
@@ -19,6 +19,12 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 readme = "README.md"
+
+[project.urls]
+Homepage = "https://hdr.is"
+Repository = "https://github.com/hdresearch/mcp-python.git"
+Issues = "https://github.com/hdresearch/mcp-python/issues"
+Github = "https://github.com/hdresearch/mcp-python"
 
 [project.scripts]
 python-repl = "mcp_python:main"
