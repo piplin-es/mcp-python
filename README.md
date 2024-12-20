@@ -34,7 +34,7 @@ Add this configuration to your Claude Desktop config file:
 }
 ```
 
-The server provides two tools:
+The server provides three tools:
 
 1. `execute_python`: Execute Python code with persistent variables
 
@@ -42,6 +42,8 @@ The server provides two tools:
    - `reset`: Optional boolean to reset the session
 
 2. `list_variables`: Show all variables in the current session
+
+3. `install_package`: Install a package from pypi
 
 ## Examples
 
