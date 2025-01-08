@@ -31,4 +31,4 @@ python-repl = "mcp_python:main"
 
 # Add this section to tell Hatch where to find the package files
 [tool.hatch.build.targets.wheel]
-packages = ["src/python_repl"]
+packages = ["src/mcp_python"]

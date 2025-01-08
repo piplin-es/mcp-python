@@ -120,7 +120,7 @@ class PythonREPLServer:
                         last_line = code.strip().split('\n')[-1]
                         last_value = eval(last_line, self.global_namespace)
                         result = f"Result: {repr(last_value)}"
-                    except:
+                    except (SyntaxError, ValueError, NameError):
                         result = "Code executed successfully (no output)"
                 
                 return [
@@ -130,7 +130,7 @@ class PythonREPLServer:
                     )
                 ]
                     
-            except Exception as e:
+            except Exception as e:  # noqa: F841
                 # Capture and format any exceptions
                 error_msg = f"Error executing code:\n{traceback.format_exc()}"
                 return [
@@ -162,6 +162,14 @@ class PythonREPLServer:
                     text=True,
                     check=True
                 )
+
+                if process.returncode != 0:
+                    return [
+                        types.TextContent(
+                            type="text",
+                            text=f"Failed to install package: {process.stderr}"
+                        )
+                    ]
                 
                 # Import the package to make it available in the REPL
                 try:
