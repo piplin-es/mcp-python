@@ -8,10 +8,26 @@ from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
 import mcp.server.stdio
 import mcp.types as types
+import logging
+import os
+from datetime import datetime
+
+# Set up logging
+log_dir = "logs"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+log_file = os.path.join(log_dir, f"python_repl_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+logging.basicConfig(
+    filename=log_file,
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 class PythonREPLServer:
     def __init__(self):
         self.server = Server("python-repl")
+        self.logger = logging.getLogger(__name__)
         # Shared namespace for all executions
         self.global_namespace = {
             "__builtins__": __builtins__,
@@ -88,12 +104,16 @@ class PythonREPLServer:
             if arguments.get("reset", False):
                 self.global_namespace.clear()
                 self.global_namespace["__builtins__"] = __builtins__
+                self.logger.info("Python session reset")
                 return [
                     types.TextContent(
                         type="text",
                         text="Python session reset. All variables cleared."
                     )
                 ]
+
+            # Log the code being executed
+            self.logger.info(f"Executing code:\n{code}")
 
             # Capture stdout and stderr
             stdout = io.StringIO()
@@ -123,6 +143,9 @@ class PythonREPLServer:
                     except (SyntaxError, ValueError, NameError):
                         result = "Code executed successfully (no output)"
                 
+                # Log the execution result
+                self.logger.info(f"Execution result:\n{result}")
+                
                 return [
                     types.TextContent(
                         type="text",
@@ -130,9 +153,11 @@ class PythonREPLServer:
                     )
                 ]
                     
-            except Exception as e:  # noqa: F841
+            except Exception as e:
                 # Capture and format any exceptions
                 error_msg = f"Error executing code:\n{traceback.format_exc()}"
+                # Log the error
+                self.logger.error(f"Execution failed:\n{error_msg}")
                 return [
                     types.TextContent(
                         type="text",

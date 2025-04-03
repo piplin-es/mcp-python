@@ -8,3 +8,26 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Report items
+report_items/
+
+# Logs
+logs/
+*.log
+
+# Google Suite
+.gsuite/
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Python version management
+.python-version
+
+# Package management
+uv.lock
