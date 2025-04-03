@@ -1,10 +1,25 @@
 # Python REPL MCP Server
 
+> This is a fork of [hdresearch/mcp-python](https://github.com/hdresearch/mcp-python), a Python REPL server for MCP protocol.
+
 This MCP server provides a Python REPL (Read-Eval-Print Loop) as a tool. It allows execution of Python code through the MCP protocol with a persistent session.
 
 ## Setup
 
 No setup needed! The project uses `uv` for dependency management.
+
+## Environment Variables
+
+The server supports `.env` file for environment variables management. Create a `.env` file in the root directory to store your environment variables. These variables will be automatically loaded and accessible in your Python REPL session using:
+
+```python
+import os
+
+# Access environment variables
+my_var = os.environ.get('MY_VARIABLE')
+# or
+my_var = os.getenv('MY_VARIABLE')
+```
 
 ## Running the Server
 

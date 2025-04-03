@@ -11,11 +11,15 @@ import mcp.types as types
 import logging
 import os
 from datetime import datetime
+from dotenv import load_dotenv
 
 # Set up logging
 log_dir = "logs"
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
+
+# Load environment variables from .env file into os.environ
+load_dotenv(override=True)
 
 log_file = os.path.join(log_dir, f"python_repl_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
 logging.basicConfig(
@@ -28,10 +32,14 @@ class PythonREPLServer:
     def __init__(self):
         self.server = Server("python-repl")
         self.logger = logging.getLogger(__name__)
+        
         # Shared namespace for all executions
         self.global_namespace = {
             "__builtins__": __builtins__,
+            "os": os,  # Add os module to access env variables
         }
+        
+        self.logger.info("Environment variables loaded from .env file")
         
         # Set up handlers using decorators
         @self.server.list_tools()
@@ -47,7 +55,7 @@ class PythonREPLServer:
         return [
             types.Tool(
                 name="execute_python",
-                description="Execute Python code and return the output. Variables persist between executions.",
+                description="Execute Python code and return the output. Variables persist between executions. Environment variables can be accessed using os.environ.get() or os.getenv().",
                 inputSchema={
                     "type": "object",
                     "properties": {
