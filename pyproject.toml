@@ -4,13 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-python"
-version = "0.1.4"
+version = "0.2.0"
 description = "MCP server providing a Python REPL with persistent session"
 requires-python = ">=3.10"  # Will be compatible with Python 3.13 when released
 dependencies = [
     "llm-parser-filter",
     "mcp",
     "mcp-gsuite",
+    "pytest>=8.3.5",
     "python-dotenv",
 ]
 authors = [{ name = "Tynan Daly", email = "tynan@hdr.is" }]

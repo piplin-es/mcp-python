@@ -12,7 +12,7 @@ import logging
 import os
 from datetime import datetime
 from dotenv import load_dotenv
-
+import time
 # Set up logging
 log_dir = "logs"
 if not os.path.exists(log_dir):
@@ -53,6 +53,20 @@ class PythonREPLServer:
     async def handle_list_tools(self) -> list[types.Tool]:
         """List available tools"""
         return [
+            types.Tool(
+                name="initialize_project",
+                description="Initialize a new project",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "project_name": {
+                            "type": "string",
+                            "description": "Current project name. Will be used as the directory name.",
+                        }
+                    },
+                    "required": ["project_name"],
+                },
+            ),
             types.Tool(
                 name="execute_python",
                 description="Execute Python code and return the output. Variables persist between executions. Environment variables can be accessed using os.environ.get() or os.getenv().",
@@ -96,6 +110,87 @@ class PythonREPLServer:
             )
         ]
 
+    def reset_session(self):
+        self.global_namespace.clear()
+        self.global_namespace["__builtins__"] = __builtins__
+        self.logger.info("Python session reset")
+
+        return [
+            types.TextContent(
+                type="text",
+                text="Python session reset. All variables cleared."
+            )
+        ]
+
+
+    def initialize_project(self, project_name: str) -> str:
+        self.reset_session()
+        project_name = time.strftime("%Y%m%d_%H%M%S") + "_" + project_name
+        project_dir = os.path.join(os.getenv("PROJECT_ROOT"), project_name)
+        os.makedirs(project_dir, exist_ok=True)
+        os.chdir(project_dir)
+
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Project initialized in {project_dir}"
+            )
+        ]
+    
+    def execute_python(self, code: str) -> str:
+        # Log the code being executed
+        self.logger.info(f"Executing code:\n{code}")
+
+        # Capture stdout and stderr
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        
+        try:
+            # Execute code with output redirection
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exec(code, self.global_namespace)
+            
+            # Combine output
+            output = stdout.getvalue()
+            errors = stderr.getvalue()
+            
+            # Format response
+            result = ""
+            if output:
+                result += f"Output:\n{output}"
+            if errors:
+                result += f"\nErrors:\n{errors}"
+            if not output and not errors:
+                # Try to get the value of the last expression
+                try:
+                    last_line = code.strip().split('\n')[-1]
+                    last_value = eval(last_line, self.global_namespace)
+                    result = f"Result: {repr(last_value)}"
+                except (SyntaxError, ValueError, NameError):
+                    result = "Code executed successfully (no output)"
+            
+            # Log the execution result
+            self.logger.info(f"Execution result:\n{result}")
+            
+            return [
+                types.TextContent(
+                    type="text",
+                    text=result
+                )
+            ]
+                
+        except Exception as e:
+            # Capture and format any exceptions
+            error_msg = f"Error executing code:\n{traceback.format_exc()}"
+            # Log the error
+            self.logger.error(f"Execution failed:\n{error_msg}")
+            return [
+                types.TextContent(
+                    type="text",
+                    text=error_msg
+                )
+            ]
+
     async def handle_call_tool(
         self, name: str, arguments: dict | None
     ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
@@ -110,68 +205,10 @@ class PythonREPLServer:
 
             # Check if we should reset the session
             if arguments.get("reset", False):
-                self.global_namespace.clear()
-                self.global_namespace["__builtins__"] = __builtins__
-                self.logger.info("Python session reset")
-                return [
-                    types.TextContent(
-                        type="text",
-                        text="Python session reset. All variables cleared."
-                    )
-                ]
+                return self.reset_session()
 
-            # Log the code being executed
-            self.logger.info(f"Executing code:\n{code}")
 
-            # Capture stdout and stderr
-            stdout = io.StringIO()
-            stderr = io.StringIO()
-            
-            try:
-                # Execute code with output redirection
-                with redirect_stdout(stdout), redirect_stderr(stderr):
-                    exec(code, self.global_namespace)
-                
-                # Combine output
-                output = stdout.getvalue()
-                errors = stderr.getvalue()
-                
-                # Format response
-                result = ""
-                if output:
-                    result += f"Output:\n{output}"
-                if errors:
-                    result += f"\nErrors:\n{errors}"
-                if not output and not errors:
-                    # Try to get the value of the last expression
-                    try:
-                        last_line = code.strip().split('\n')[-1]
-                        last_value = eval(last_line, self.global_namespace)
-                        result = f"Result: {repr(last_value)}"
-                    except (SyntaxError, ValueError, NameError):
-                        result = "Code executed successfully (no output)"
-                
-                # Log the execution result
-                self.logger.info(f"Execution result:\n{result}")
-                
-                return [
-                    types.TextContent(
-                        type="text",
-                        text=result
-                    )
-                ]
-                    
-            except Exception as e:
-                # Capture and format any exceptions
-                error_msg = f"Error executing code:\n{traceback.format_exc()}"
-                # Log the error
-                self.logger.error(f"Execution failed:\n{error_msg}")
-                return [
-                    types.TextContent(
-                        type="text",
-                        text=error_msg
-                    )
-                ]
+            return self.execute_python(code)
 
         elif name == "install_package":
             package = arguments.get("package")

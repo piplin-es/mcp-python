@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+uv is our main project management tool, use it for all command line tasks: launching scripts, test, etc.
