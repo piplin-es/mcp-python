@@ -34,3 +34,4 @@ logs/
 
 # Package management
 uv.lock
+.credentials_db

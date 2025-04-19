@@ -13,6 +13,8 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 import time
+from mcp.server.fastmcp import FastMCP
+
 # Set up logging
 log_dir = "logs"
 if not os.path.exists(log_dir):
@@ -28,290 +30,174 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-class PythonREPLServer:
-    def __init__(self):
-        self.server = Server("python-repl")
-        self.logger = logging.getLogger(__name__)
+# Create the FastMCP server instance
+mcp = FastMCP("PythonREPL")
+
+@mcp.tool()
+async def execute_python(code: str, reset: bool = False) -> str:
+    """Execute Python code and return the output. Variables persist between executions.
+    Environment variables can be accessed using os.environ.get() or os.getenv().
+    
+    Args:
+        code: Python code to execute
+        reset: Reset the Python session (clear all variables)
         
-        # Shared namespace for all executions
-        self.global_namespace = {
+    Returns:
+        The execution output or error message
+    """
+    # Access the global namespace from the server instance
+    global_namespace = getattr(mcp, 'global_namespace', {
+        "__builtins__": __builtins__,
+        "os": os,
+    })
+    
+    if reset:
+        global_namespace.clear()
+        global_namespace.update({
             "__builtins__": __builtins__,
-            "os": os,  # Add os module to access env variables
-        }
+            "os": os,
+        })
+        return "Python session reset. All variables cleared."
+
+    # Capture stdout and stderr
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    
+    try:
+        # Execute code with output redirection
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            exec(code, global_namespace)
         
-        self.logger.info("Environment variables loaded from .env file")
+        # Combine output
+        output = stdout.getvalue()
+        errors = stderr.getvalue()
         
-        # Set up handlers using decorators
-        @self.server.list_tools()
-        async def handle_list_tools() -> list[types.Tool]:
-            return await self.handle_list_tools()
-            
-        @self.server.call_tool()
-        async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
-            return await self.handle_call_tool(name, arguments)
+        # Format response
+        result = ""
+        if output:
+            result += f"Output:\n{output}"
+        if errors:
+            result += f"\nErrors:\n{errors}"
+        if not output and not errors:
+            # Try to get the value of the last expression
+            try:
+                last_line = code.strip().split('\n')[-1]
+                last_value = eval(last_line, global_namespace)
+                result = f"Result: {repr(last_value)}"
+            except (SyntaxError, ValueError, NameError):
+                result = "Code executed successfully (no output)"
+        
+        # Store the updated namespace
+        setattr(mcp, 'global_namespace', global_namespace)
+        
+        return result
+                
+    except Exception as e:
+        # Capture and format any exceptions
+        error_msg = f"Error executing code:\n{traceback.format_exc()}"
+        # Log the error
+        logging.error(f"Execution failed:\n{error_msg}")
+        return error_msg
 
-    async def handle_list_tools(self) -> list[types.Tool]:
-        """List available tools"""
-        return [
-            types.Tool(
-                name="initialize_project",
-                description="Initialize a new project",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "project_name": {
-                            "type": "string",
-                            "description": "Current project name. Will be used as the directory name.",
-                        }
-                    },
-                    "required": ["project_name"],
-                },
-            ),
-            types.Tool(
-                name="execute_python",
-                description="Execute Python code and return the output. Variables persist between executions. Environment variables can be accessed using os.environ.get() or os.getenv().",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "code": {
-                            "type": "string",
-                            "description": "Python code to execute",
-                        },
-                        "reset": {
-                            "type": "boolean",
-                            "description": "Reset the Python session (clear all variables)",
-                            "default": False
-                        }
-                    },
-                    "required": ["code"],
-                },
-            ),
-            types.Tool(
-                name="list_variables",
-                description="List all variables in the current session",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                },
-            ),
-            types.Tool(
-                name="install_package",
-                description="Install a Python package using uv",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "package": {
-                            "type": "string",
-                            "description": "Package name to install (e.g., 'pandas')",
-                        }
-                    },
-                    "required": ["package"],
-                },
-            )
-        ]
-
-    def reset_session(self):
-        self.global_namespace.clear()
-        self.global_namespace["__builtins__"] = __builtins__
-        self.logger.info("Python session reset")
-
-        return [
-            types.TextContent(
-                type="text",
-                text="Python session reset. All variables cleared."
-            )
-        ]
-
-
-    def initialize_project(self, project_name: str) -> str:
-        self.reset_session()
-        project_name = time.strftime("%Y%m%d_%H%M%S") + "_" + project_name
-        project_dir = os.path.join(os.getenv("PROJECT_ROOT"), project_name)
+@mcp.tool()
+async def initialize_project(project_name: str) -> str:
+    """Initialize a new project with timestamp prefix.
+    
+    Args:
+        project_name: Current project name. Will be used as the directory name.
+        
+    Returns:
+        Confirmation message with project directory path
+    """
+    project_name = time.strftime("%Y%m%d_%H%M%S") + "_" + project_name
+    
+    # Get project root or use current directory as fallback
+    project_root = os.getenv("PROJECTS_ROOT", os.getcwd())
+    project_dir = os.path.join(project_root, project_name)
+    
+    try:
         os.makedirs(project_dir, exist_ok=True)
         os.chdir(project_dir)
+        
+        logging.info(f"Project initialized in {project_dir}")
+        
+        return f"Project successfully initialized in {project_dir}"
+    except Exception as e:
+        error_msg = f"Failed to initialize project: {str(e)}"
+        logging.error(error_msg)
+        return error_msg
 
-        return [
-            types.TextContent(
-                type="text",
-                text=f"Project initialized in {project_dir}"
-            )
-        ]
+@mcp.tool()
+async def install_package(package: str) -> str:
+    """Install a Python package using uv.
     
-    def execute_python(self, code: str) -> str:
-        # Log the code being executed
-        self.logger.info(f"Executing code:\n{code}")
-
-        # Capture stdout and stderr
-        stdout = io.StringIO()
-        stderr = io.StringIO()
+    Args:
+        package: Package name to install (e.g., 'pandas')
         
+    Returns:
+        Installation result message
+    """
+    # Basic package name validation
+    if not re.match("^[A-Za-z0-9][A-Za-z0-9._-]*$", package):
+        return f"Invalid package name: {package}"
+    
+    try:
+        # Install package using uv
+        process = subprocess.run(
+            ["uv", "pip", "install", package],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        if process.returncode != 0:
+            return f"Failed to install package: {process.stderr}"
+        
+        # Import the package to make it available in the REPL
         try:
-            # Execute code with output redirection
-            with redirect_stdout(stdout), redirect_stderr(stderr):
-                exec(code, self.global_namespace)
+            # Get the base package name without extras
+            base_package = package.split('[')[0]
+            # Execute the import in the global namespace
+            exec(f"import {base_package}", getattr(mcp, 'global_namespace', globals()))
+            return f"Successfully installed and imported {package}"
+        except ImportError as e:
+            return f"Package installed but import failed: {str(e)}"
             
-            # Combine output
-            output = stdout.getvalue()
-            errors = stderr.getvalue()
-            
-            # Format response
-            result = ""
-            if output:
-                result += f"Output:\n{output}"
-            if errors:
-                result += f"\nErrors:\n{errors}"
-            if not output and not errors:
-                # Try to get the value of the last expression
-                try:
-                    last_line = code.strip().split('\n')[-1]
-                    last_value = eval(last_line, self.global_namespace)
-                    result = f"Result: {repr(last_value)}"
-                except (SyntaxError, ValueError, NameError):
-                    result = "Code executed successfully (no output)"
-            
-            # Log the execution result
-            self.logger.info(f"Execution result:\n{result}")
-            
-            return [
-                types.TextContent(
-                    type="text",
-                    text=result
-                )
-            ]
-                
-        except Exception as e:
-            # Capture and format any exceptions
-            error_msg = f"Error executing code:\n{traceback.format_exc()}"
-            # Log the error
-            self.logger.error(f"Execution failed:\n{error_msg}")
-            return [
-                types.TextContent(
-                    type="text",
-                    text=error_msg
-                )
-            ]
+    except subprocess.CalledProcessError as e:
+        return f"Failed to install package:\n{e.stderr}"
 
-    async def handle_call_tool(
-        self, name: str, arguments: dict | None
-    ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
-        """Handle tool execution requests"""
-        if not arguments:
-            raise ValueError("Missing arguments")
-        
-        if name == "execute_python":
-            code = arguments.get("code")
-            if not code:
-                raise ValueError("Missing code parameter")
+@mcp.tool()
+async def list_variables() -> str:
+    """List all variables in the current session.
+    
+    Returns:
+        Formatted string of current variables and their values
+    """
+    # Get the global namespace
+    global_namespace = getattr(mcp, 'global_namespace', {})
+    
+    # Filter out builtins and private variables
+    vars_dict = {
+        k: repr(v) for k, v in global_namespace.items() 
+        if not k.startswith('_') and k != '__builtins__'
+    }
+    
+    if not vars_dict:
+        return "No variables in current session."
+    
+    # Format variables list
+    var_list = "\n".join(f"{k} = {v}" for k, v in vars_dict.items())
+    return f"Current session variables:\n\n{var_list}"
 
-            # Check if we should reset the session
-            if arguments.get("reset", False):
-                return self.reset_session()
-
-
-            return self.execute_python(code)
-
-        elif name == "install_package":
-            package = arguments.get("package")
-            if not package:
-                raise ValueError("Missing package name")
-                
-            # Basic package name validation
-            if not re.match("^[A-Za-z0-9][A-Za-z0-9._-]*$", package):
-                return [
-                    types.TextContent(
-                        type="text",
-                        text=f"Invalid package name: {package}"
-                    )
-                ]
-            
-            try:
-                # Install package using uv
-                process = subprocess.run(
-                    ["uv", "pip", "install", package],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-
-                if process.returncode != 0:
-                    return [
-                        types.TextContent(
-                            type="text",
-                            text=f"Failed to install package: {process.stderr}"
-                        )
-                    ]
-                
-                # Import the package to make it available in the REPL
-                try:
-                    exec(f"import {package.split('[')[0]}", self.global_namespace)
-                    return [
-                        types.TextContent(
-                            type="text",
-                            text=f"Successfully installed and imported {package}"
-                        )
-                    ]
-                except ImportError as e:
-                    return [
-                        types.TextContent(
-                            type="text",
-                            text=f"Package installed but import failed: {str(e)}"
-                        )
-                    ]
-                    
-            except subprocess.CalledProcessError as e:
-                return [
-                    types.TextContent(
-                        type="text",
-                        text=f"Failed to install package:\n{e.stderr}"
-                    )
-                ]
-                
-        elif name == "list_variables":
-            # Filter out builtins and private variables
-            vars_dict = {
-                k: repr(v) for k, v in self.global_namespace.items() 
-                if not k.startswith('_') and k != '__builtins__'
-            }
-            
-            if not vars_dict:
-                return [
-                    types.TextContent(
-                        type="text",
-                        text="No variables in current session."
-                    )
-                ]
-            
-            # Format variables list
-            var_list = "\n".join(f"{k} = {v}" for k, v in vars_dict.items())
-            return [
-                types.TextContent(
-                    type="text",
-                    text=f"Current session variables:\n\n{var_list}"
-                )
-            ]
-            
-        else:
-            raise ValueError(f"Unknown tool: {name}")
-
-    async def run(self):
-        """Run the server"""
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-            await self.server.run(
-                read_stream,
-                write_stream,
-                InitializationOptions(
-                    server_name="python-repl",
-                    server_version="0.1.0",
-                    capabilities=self.server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
-                ),
-            )
+# Initialize the global namespace
+setattr(mcp, 'global_namespace', {
+    "__builtins__": __builtins__,
+    "os": os,
+})
 
 async def main():
-    server = PythonREPLServer()
-    await server.run()
+    await mcp.run_stdio_async()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import anyio
+    anyio.run(main)
