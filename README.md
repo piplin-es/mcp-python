@@ -1,6 +1,6 @@
 # Python REPL MCP Server
 
-> This is a fork of [hdresearch/mcp-python](https://github.com/hdresearch/mcp-python), a Python REPL server for MCP protocol.
+> This is a fork of [hdresearch/mcp-python](https://github.com/hdresearch/mcp-python), a Python REPL server for MCP protocol. But seems almost nothing is left from the original code.
 
 This MCP server provides a Python REPL (Read-Eval-Print Loop) as a tool. It allows execution of Python code through the MCP protocol with a persistent session.
 
