@@ -189,6 +189,67 @@ async def list_variables() -> str:
     var_list = "\n".join(f"{k} = {v}" for k, v in vars_dict.items())
     return f"Current session variables:\n\n{var_list}"
 
+@mcp.tool()
+async def create_file(filename: str, content: str) -> str:
+    """Create a new file with the specified content. Supports nested directories.
+    
+    Args:
+        filename: Path to the file to create (can include directories)
+        content: Content to write to the file
+        
+    Returns:
+        Success or error message
+    """
+    try:
+        # Create directories if they don't exist
+        directory = os.path.dirname(filename)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+            
+        # Write the content to the file
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+            
+        abs_path = os.path.abspath(filename)
+        logging.info(f"File created successfully: {abs_path}")
+        return f"File created successfully at {abs_path}"
+        
+    except Exception as e:
+        error_msg = f"Failed to create file {filename}: {str(e)}"
+        logging.error(error_msg)
+        return error_msg
+
+@mcp.tool()
+async def load_file(filename: str) -> str:
+    """Load and execute a Python script file in the current REPL session.
+    The script's variables and functions will be available in the global namespace.
+    
+    Args:
+        filename: Path to the Python script to load and execute
+        
+    Returns:
+        Execution result or error message
+    """
+    try:
+        # Check if file exists
+        if not os.path.exists(filename):
+            return f"Error: File {filename} not found"
+            
+        # Read the file content
+        with open(filename, 'r', encoding='utf-8') as f:
+            code = f.read()
+            
+        # Execute the code using our execute_python tool to maintain the same environment
+        result = await execute_python(code)
+        
+        logging.info(f"Successfully loaded and executed {filename}")
+        return f"File {filename} loaded and executed:\n{result}"
+        
+    except Exception as e:
+        error_msg = f"Failed to load file {filename}: {str(e)}"
+        logging.error(error_msg)
+        return error_msg
+
 # Initialize the global namespace
 setattr(mcp, 'global_namespace', {
     "__builtins__": __builtins__,
