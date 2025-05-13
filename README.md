@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/piplin-es-mcp-python-badge.png)](https://mseep.ai/app/piplin-es-mcp-python)
+
 # Python REPL MCP Server
 
 > This is a fork of [hdresearch/mcp-python](https://github.com/hdresearch/mcp-python), a Python REPL server for MCP protocol. But seems almost nothing is left from the original code.
